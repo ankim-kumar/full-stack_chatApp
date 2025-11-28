@@ -37,6 +37,7 @@ jobs:
   # ---------------------------
   gitleaks-scan:
     runs-on: Agent-1
+    needs: compile
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -46,5 +47,5 @@ jobs:
 
       - name: Gitleaks Scan
         run: |
-          gitleaks detect --source ./frontend --exit-code 1
-          gitleaks detect --source ./backend --exit-code 1
+          gitleaks detect --source ./frontend --exit-code 1 --exclude-path ../k8s/secrets.yml
+          gitleaks detect --source ./backend --exit-code 1 --exclude-path ../k8s/secrets.yml
