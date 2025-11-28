@@ -8,9 +8,6 @@ on:
 
 jobs:
 
-  # ---------------------------
-  # 1. SYNTAX COMPILATION JOB
-  # ---------------------------
   compile:
     runs-on: Agent-1
     steps:
@@ -32,9 +29,6 @@ jobs:
           cd backend
           find . -name "*.js" -exec node --check {} \;
 
-  # ---------------------------
-  # 2. GITLEAKS SECURITY SCAN
-  # ---------------------------
   gitleaks-scan:
     runs-on: Agent-1
     needs: compile
@@ -49,3 +43,20 @@ jobs:
         run: |
           gitleaks detect --source ./frontend --exit-code 1 --exclude-path ../k8s/secrets.yml
           gitleaks detect --source ./backend --exit-code 1 --exclude-path ../k8s/secrets.yml
+
+  trivy_fs_scan:
+    runs-on: Agent-1
+    needs: gitleaks-scan
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'table'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
