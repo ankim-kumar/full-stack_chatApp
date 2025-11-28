@@ -1,0 +1,50 @@
+name: Node.js CICD
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+
+  # ---------------------------
+  # 1. SYNTAX COMPILATION JOB
+  # ---------------------------
+  compile:
+    runs-on: Agent-1
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Frontend Compilation (Syntax Check)
+        run: |
+          cd frontend
+          find . -name "*.js" -exec node --check {} \;
+
+      - name: Backend Compilation (Syntax Check)
+        run: |
+          cd backend
+          find . -name "*.js" -exec node --check {} \;
+
+  # ---------------------------
+  # 2. GITLEAKS SECURITY SCAN
+  # ---------------------------
+  gitleaks-scan:
+    runs-on: Agent-1
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Gitleaks Setup
+        uses: gitleaks/gitleaks-action@v2
+
+      - name: Gitleaks Scan
+        run: |
+          gitleaks detect --source ./frontend --exit-code 1
+          gitleaks detect --source ./backend --exit-code 1
