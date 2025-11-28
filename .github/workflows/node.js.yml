@@ -28,7 +28,21 @@ jobs:
         run: |
           cd backend
           find . -name "*.js" -exec node --check {} \;
+  gitleaks-scan:
+    runs-on: Agent-1
+    needs: compile
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
+      - name: Gitleaks Setup
+        uses: gitleaks/gitleaks-action@v2
+
+      - name: Gitleaks Scan
+        run: |
+          gitleaks detect --source ./frontend --exit-code 1 --exclude-path ../k8s/secrets.yml
+          gitleaks detect --source ./backend --exit-code 1 --exclude-path ../k8s/secrets.yml
+  
   trivy_fs_scan:
     runs-on: Agent-1
     needs: compile
