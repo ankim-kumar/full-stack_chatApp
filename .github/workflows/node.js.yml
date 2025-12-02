@@ -2,9 +2,9 @@ name: Node.js CICD
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 jobs:
 
@@ -28,6 +28,8 @@ jobs:
         run: |
           cd backend
           find . -name "*.js" -exec node --check {} \;
+
+
   gitleaks-scan:
     runs-on: Agent-1
     needs: compile
@@ -40,9 +42,10 @@ jobs:
 
       - name: Gitleaks Scan
         run: |
-          gitleaks detect --source ./frontend --exit-code 1 --exclude-path ../k8s/secrets.yml
-          gitleaks detect --source ./backend --exit-code 1 --exclude-path ../k8s/secrets.yml
-  
+          gitleaks detect --source ./frontend --exclude-path k8s/secrets.yml --exit-code 1
+          gitleaks detect --source ./backend --exclude-path k8s/secrets.yml --exit-code 1
+
+
   trivy_fs_scan:
     runs-on: Agent-1
     needs: compile
@@ -58,4 +61,46 @@ jobs:
           format: 'table'
           ignore-unfixed: true
           vuln-type: 'os,library'
-          severity: 'CRITICAL,HIGH' 
+          severity: 'CRITICAL,HIGH'
+
+
+  sonar-frontend:
+    runs-on: Agent-1
+    needs: trivy_fs_scan
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: SonarQube Scan (frontend)
+        uses: sonarsource/sonarqube-scan-action@master
+        with:
+          projectBaseDir: frontend
+          args: >
+            -Dsonar.projectKey=myorg_frontend
+            -Dsonar.projectName=myorg_frontend
+            -Dsonar.sources=.
+            -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/build/**
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
+
+  sonar-backend:
+    runs-on: Agent-1
+    needs: trivy_fs_scan
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: SonarQube Scan (backend)
+        uses: sonarsource/sonarqube-scan-action@master
+        with:
+          projectBaseDir: backend
+          args: >
+            -Dsonar.projectKey=myorg_backend
+            -Dsonar.projectName=myorg_backend
+            -Dsonar.sources=.
+            -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/build**
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
