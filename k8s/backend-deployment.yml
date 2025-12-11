@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: chatapp-backend
-        image: ankim628/chatgitbackend:01
+        image: ankim628/chatgitbackend:gcphttp
         ports:
         - containerPort: 5001
         env:
