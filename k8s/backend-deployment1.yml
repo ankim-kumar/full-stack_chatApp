@@ -17,23 +17,18 @@ spec:
     spec:
       containers:
       - name: chatapp-backend
-        image: ankim628/chatgitbackendgcp:01
-        imagePullPolicy: Always
+        image: ankim628/chatgitbackend:gcphttp
         ports:
         - containerPort: 5001
         env:
         - name: NODE_ENV
           value: production
-
         - name: FRONTEND_URL
-          value: "http://136.114.123.245"
-
+          value: "http://35.224.159.2"
         - name: CORS_ORIGIN
-          value: "http://136.114.123.245"
-
+          value: "http://35.224.159.2"
         - name: COOKIE_DOMAIN
-          value: "136.114.123.245"
-
+          value: "35.224.159.2"
         - name: MONGODB_URI
           value: "mongodb://mongoadmin:secret@mongodb:27017/dbname?authSource=admin"
         - name: JWT_SECRET
