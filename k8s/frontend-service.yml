@@ -4,6 +4,7 @@ metadata:
   name: frontend
   namespace: chat-app
 spec:
+  type: LoadBalancer
   selector:
     app: frontend
   ports:
