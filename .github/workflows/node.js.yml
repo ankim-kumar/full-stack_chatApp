@@ -31,6 +31,11 @@ jobs:
         with:
           cluster_name: ${{ secrets.GKE_CLUSTER_NAME }}
           location: ${{ secrets.GKE_REGION }}
+      
+      - name: Install kubectl
+        run: |
+          gcloud components install kubectl --quiet
+          kubectl version --client    
 
       # Deploy Kubernetes manifests
       - name: Deploy to GKE
