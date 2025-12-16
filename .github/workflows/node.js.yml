@@ -1,46 +1,169 @@
-name: GKE Deployment (Pull from Docker Hub)
+pipeline 
+
+name: Node.js CICD
 
 on:
   push:
-    branches:
-      - gcpnginx
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
 
 jobs:
-  deploy-to-gke:
-    runs-on: Agent1   # ✅ your self-hosted runner
 
+  compile:
+    runs-on: Agent-1
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Authenticate to Google Cloud
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          node-version: '18'
 
-      # Set up gcloud
-      - name: Set up gcloud
-        uses: google-github-actions/setup-gcloud@v2
-        with:
-          project_id: ${{ secrets.GCP_PROJECT_ID }}
-
-      # Get GKE credentials
-      - name: Get GKE credentials
-        uses: google-github-actions/get-gke-credentials@v2
-        with:
-          cluster_name: ${{ secrets.GKE_CLUSTER_NAME }}
-          location: ${{ secrets.GKE_REGION }}
-
-      # Deploy Kubernetes manifests
-      - name: Deploy to GKE
+      - name: Frontend Compilation (Syntax Check)
         run: |
-          kubectl apply -f k8s/namespace.yml
-          kubectl apply -f k8s/secrets.yml
-          kubectl apply -f k8s/mongodb-pvc.yml
-          kubectl apply -f k8s/mongodb-deployment.yml
-          kubectl apply -f k8s/mongodb-service.yml
-          kubectl apply -f k8s/backend-deployment.yml
-          kubectl apply -f k8s/backend-service.yml
-          kubectl apply -f k8s/frontend-deployment.yml
-          kubectl apply -f k8s/frontend-service.yml
+          cd frontend
+          find . -name "*.js" -exec node --check {} \;
+
+      - name: Backend Compilation (Syntax Check)
+        run: |
+          cd backend
+          find . -name "*.js" -exec node --check {} \;
+
+
+  gitleaks-scan:
+    runs-on: Agent-1
+    needs: compile
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Gitleaks Setup
+        uses: gitleaks/gitleaks-action@v2
+
+      - name: Gitleaks Scan
+        run: |
+          gitleaks detect --source ./frontend --exclude-path k8s/secrets.yml --exit-code 1
+          gitleaks detect --source ./backend --exclude-path k8s/secrets.yml --exit-code 1
+
+
+  trivy_fs_scan:
+    runs-on: Agent-1
+    needs: compile
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'table'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+
+
+  sonar-frontend:
+    runs-on: Agent-1
+    needs: trivy_fs_scan
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: SonarQube Scan (frontend)
+        uses: sonarsource/sonarqube-scan-action@master
+        with:
+          projectBaseDir: frontend
+          args: >
+            -Dsonar.projectKey=myorg_frontend
+            -Dsonar.projectName=myorg_frontend
+            -Dsonar.sources=.
+            -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/build/**
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
+
+  sonar-backend:
+    runs-on: Agent-1
+    needs: sonar-frontend
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install unzip
+        run: sudo apt-get update && sudo apt-get install -y unzip
+
+      - name: SonarQube Scan (backend)
+        uses: sonarsource/sonarqube-scan-action@master
+        with:
+          projectBaseDir: backend
+          args: >
+            -Dsonar.projectKey=myorg_backend
+            -Dsonar.projectName=myorg_backend
+            -Dsonar.sources=.
+            -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/build**
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
+
+  build_backend_docker_image_and_push:
+    runs-on: ubuntu-latest
+    needs: sonar-backend
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build & Push Backend Image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: |
+            ankim628/chatgitbackend:01
+
+
+  build_frontend_docker_image_and_push:
+    runs-on: ubuntu-latest
+    needs: sonar-frontend
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build & Push Frontend Image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: |
+            ankim628/chatgitfrontend:01
