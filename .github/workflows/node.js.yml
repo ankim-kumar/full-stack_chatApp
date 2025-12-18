@@ -1,43 +1,183 @@
-name: GKE Deployment (Pull from Docker Hub)
+name: Node.js CI/CD with GKE Deployment
 
 on:
   push:
-    branches:
-      - gcpnginx
+    branches: ["gcpnginx"]
+  pull_request:
+    branches: ["gcpnginx"]
 
 jobs:
-  deploy-to-gke:
-    runs-on: self-hosted   # ✅ your self-hosted runners
+# =========================
+# 1. Compile / Syntax Check
+# =========================
+  compile:
+    runs-on: Agent1
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+
+      - name: Frontend Syntax Check
+        run: |
+          cd frontend
+          find . -name "*.js" -exec node --check {} \;
+
+      - name: Backend Syntax Check
+        run: |
+          cd backend
+          find . -name "*.js" -exec node --check {} \;
+
+# =========================
+# 2. Gitleaks Scan
+# =========================
+  gitleaks:
+    runs-on: Agent1
+    needs: compile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: gitleaks/gitleaks-action@v2
+
+      - name: Run Gitleaks
+        run: |
+          gitleaks detect --source ./frontend --exit-code 1
+          gitleaks detect --source ./backend --exit-code 1
+
+# =========================
+# 3. Trivy FS Scan
+# =========================
+  trivy:
+    runs-on: Agent1
+    needs: gitleaks
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Trivy Scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+
+# =========================
+# 4. SonarQube Frontend
+# =========================
+  sonar-frontend:
+    runs-on: Agent1
+    needs: trivy
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: SonarQube Scan Frontend
+        uses: sonarsource/sonarqube-scan-action@master
+        with:
+          projectBaseDir: frontend
+          args: >
+            -Dsonar.projectKey=myorg_frontend
+            -Dsonar.projectName=myorg_frontend
+            -Dsonar.sources=.
+            -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/build/**
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
+# =========================
+# 5. SonarQube Backend
+# =========================
+  sonar-backend:
+    runs-on: Agent1
+    needs: sonar-frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: SonarQube Scan Backend
+        uses: sonarsource/sonarqube-scan-action@master
+        with:
+          projectBaseDir: backend
+          args: >
+            -Dsonar.projectKey=myorg_backend
+            -Dsonar.projectName=myorg_backend
+            -Dsonar.sources=.
+            -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/build/**
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
+# =========================
+# 6. Build & Push Backend Image
+# =========================
+  build-backend:
+    runs-on: ubuntu-latest
+    needs: sonar-backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build & Push Backend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push: true
+          tags: ankim628/chatgitbackendgcp:05
+
+# =========================
+# 7. Build & Push Frontend Image
+# =========================
+  build-frontend:
+    runs-on: ubuntu-latest
+    needs: sonar-backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build & Push Frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          push: true
+          tags: ankim628/chatgitfrontend:04
+
+# =========================
+# 8. Deploy to GKE
+# =========================
+  deploy-gke:
+    runs-on: self-hosted
+    needs: [build-backend, build-frontend]
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      # Authenticate to Google Cloud
-      - name: Authenticate to Google Cloud
+      - name: Authenticate to GCP
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-      # Set up gcloud
-      - name: Set up gcloud
+      - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
 
-      # Get GKE credentials
       - name: Get GKE credentials
         uses: google-github-actions/get-gke-credentials@v2
         with:
           cluster_name: ${{ secrets.GKE_CLUSTER_NAME }}
           location: ${{ secrets.GKE_REGION }}
-      
-      - name: Install kubectl
-        run: |
-          gcloud components install kubectl --quiet
-          kubectl version --client    
 
-      # Deploy Kubernetes manifests
       - name: Deploy to GKE
         run: |
           kubectl apply -f k8s/namespace.yml
@@ -49,4 +189,3 @@ jobs:
           kubectl apply -f k8s/backend-service.yml
           kubectl apply -f k8s/frontend-deployment.yml
           kubectl apply -f k8s/frontend-service.yml
- 
