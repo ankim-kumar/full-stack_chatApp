@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: chatapp-frontend
-        image: ankim628/chatgitfrontend:03
+        image: ankim628/chatgitfrontend:04
         ports:
         - containerPort: 80
         env:
