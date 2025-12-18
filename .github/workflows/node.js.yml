@@ -7,7 +7,7 @@ on:
 
 jobs:
   deploy-to-gke:
-    runs-on: self-hosted   # ✅ your self-hosted runner
+    runs-on: self-hosted   # ✅ your self-hosted runners
 
     steps:
       - name: Checkout code
