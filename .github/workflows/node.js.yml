@@ -1,4 +1,3 @@
-pipeline 
 
 name: Node.js CICD
 
@@ -9,9 +8,8 @@ on:
     branches: ["main"]
 
 jobs:
-
   compile:
-    runs-on: Agent-1
+    runs-on: self-hosted 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -31,9 +29,8 @@ jobs:
           cd backend
           find . -name "*.js" -exec node --check {} \;
 
-
   gitleaks-scan:
-    runs-on: Agent-1
+    runs-on: self-hosted
     needs: compile
     steps:
       - name: Checkout code
@@ -47,9 +44,8 @@ jobs:
           gitleaks detect --source ./frontend --exclude-path k8s/secrets.yml --exit-code 1
           gitleaks detect --source ./backend --exclude-path k8s/secrets.yml --exit-code 1
 
-
   trivy_fs_scan:
-    runs-on: Agent-1
+    runs-on: self-hosted
     needs: compile
     steps:
       - name: Checkout code
@@ -65,55 +61,11 @@ jobs:
           vuln-type: 'os,library'
           severity: 'CRITICAL,HIGH'
 
-
-  sonar-frontend:
-    runs-on: Agent-1
-    needs: trivy_fs_scan
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: SonarQube Scan (frontend)
-        uses: sonarsource/sonarqube-scan-action@master
-        with:
-          projectBaseDir: frontend
-          args: >
-            -Dsonar.projectKey=myorg_frontend
-            -Dsonar.projectName=myorg_frontend
-            -Dsonar.sources=.
-            -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/build/**
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-
-
-  sonar-backend:
-    runs-on: Agent-1
-    needs: sonar-frontend
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install unzip
-        run: sudo apt-get update && sudo apt-get install -y unzip
-
-      - name: SonarQube Scan (backend)
-        uses: sonarsource/sonarqube-scan-action@master
-        with:
-          projectBaseDir: backend
-          args: >
-            -Dsonar.projectKey=myorg_backend
-            -Dsonar.projectName=myorg_backend
-            -Dsonar.sources=.
-            -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/build**
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-
+  
 
   build_backend_docker_image_and_push:
     runs-on: ubuntu-latest
-    needs: sonar-backend
+    needs: trivy_fs_scan
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -136,13 +88,11 @@ jobs:
           context: ./backend
           file: ./backend/Dockerfile
           push: true
-          tags: |
-            ankim628/chatgitbackend:01
-
+          tags: ankim628/chatgitbackendgcp:05
 
   build_frontend_docker_image_and_push:
     runs-on: ubuntu-latest
-    needs: sonar-frontend
+    needs: trivy_fs_scan
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -165,5 +115,42 @@ jobs:
           context: ./frontend
           file: ./frontend/Dockerfile
           push: true
-          tags: |
-            ankim628/chatgitfrontend:01
+          tags: ankim628/chatgitfrontend:04
+
+  deploy-gke:
+    runs-on: self-hosted
+    needs:
+      - build_backend_docker_image_and_push
+      - build_frontend_docker_image_and_push
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Get GKE credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ secrets.GKE_CLUSTER_NAME }}
+          location: ${{ secrets.GKE_REGION }}
+
+      - name: Deploy to GKE
+        run: |
+          kubectl apply -f k8s/namespace.yml
+          kubectl apply -f k8s/secrets.yml
+          kubectl apply -f k8s/mongodb-pvc.yml
+          kubectl apply -f k8s/mongodb-deployment.yml
+          kubectl apply -f k8s/mongodb-service.yml
+          kubectl apply -f k8s/backend-deployment.yml
+          kubectl apply -f k8s/backend-service.yml
+          kubectl apply -f k8s/frontend-deployment.yml
+          kubectl apply -f k8s/frontend-service.yml
