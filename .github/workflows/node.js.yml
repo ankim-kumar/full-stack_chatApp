@@ -142,10 +142,15 @@ jobs:
           cluster_name: ${{ secrets.GKE_CLUSTER_NAME }}
           location: ${{ secrets.GKE_REGION }}
 
+      - name: Apply Kubernetes Secrets
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+        run: |
+          envsubst < k8s/secrets.yml | kubectl apply -f -
+
       - name: Deploy to GKE
         run: |
           kubectl apply -f k8s/namespace.yml
-          kubectl apply -f k8s/secrets.yml
           kubectl apply -f k8s/mongodb-pvc.yml
           kubectl apply -f k8s/mongodb-deployment.yml
           kubectl apply -f k8s/mongodb-service.yml
