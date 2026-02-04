@@ -18,7 +18,7 @@ jobs:
         with:
           node-version: '18'
 
-      - name: Frontend Compilation (Syntax Check)
+      - name: Frontend Compilation (Syntax Check) 
         run: |
           cd frontend
           find . -name "*.js" -exec node --check {} \;
