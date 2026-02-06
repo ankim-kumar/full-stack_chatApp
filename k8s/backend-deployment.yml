@@ -1,19 +1,19 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: backend-deployment
+  name: backend-blue
   namespace: chat-app
 spec:
   replicas: 1
   selector:
     matchLabels:
       app: backend
+      version: blue
   template:
     metadata:
-      name: backend-pod
-      namespace: chat-app
-      labels: 
+      labels:
         app: backend
+        version: blue
     spec:
       containers:
       - name: chatapp-backend
@@ -25,13 +25,13 @@ spec:
           value: production
         - name: MONGODB_URI
           valueFrom:
-           secretKeyRef:
+            secretKeyRef:
               name: chatapp-secrets
               key: mongodb_uri
         - name: JWT_SECRET
           valueFrom:
             secretKeyRef:
               name: chatapp-secrets
-              key: jwt 
+              key: jwt
         - name: PORT
           value: "5001"
