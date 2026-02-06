@@ -2,9 +2,9 @@ name: Node.js CICD
 
 on:
   push:
-    branches: ["gcpnginx"]
+    branches: ["prod"]
   pull_request:
-    branches: ["gcpnginx"]
+    branches: ["prod"]
 
 jobs:
   compile:
