@@ -183,7 +183,7 @@ jobs:
           IMAGE_TAG: ${{ needs.build_frontend_docker_image_and_push.outputs.image_tag }}
         run: |
           kubectl apply -f k8s/frontend-service.yml
-          kubectl apply -f k8s/frontend-blue.yml
+          kubectl apply -f k8s/frontend-deployment.yml
           envsubst < k8s/frontend-green.yml | kubectl apply -f -
 
           kubectl rollout status deployment/frontend-green \
