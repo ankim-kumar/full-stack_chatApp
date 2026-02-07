@@ -155,34 +155,28 @@ jobs:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
         run: |
           envsubst < k8s/secrets.yml | kubectl apply -f -
-
-      
+     
       - name: Deploy MongoDB
         run: |
           kubectl apply -f k8s/mongodb-pvc.yml
           kubectl apply -f k8s/mongodb-deployment.yml
           kubectl apply -f k8s/mongodb-service.yml
-
       
       - name: Deploy Backend Blue–Green
         env:
           IMAGE_TAG: ${{ needs.build_backend_docker_image_and_push.outputs.image_tag }}
         run: |
         
-          kubectl apply -f k8s/backend-deployment.yml
-
-          
+          kubectl apply -f k8s/backend-service.yml
+          kubectl apply -f k8s/backend-deployment.yml          
           envsubst < k8s/backend-green.yml | kubectl apply -f -
-
-        
+          
           kubectl rollout status deployment/backend-green \
             -n chat-app --timeout=300s
-
         
           kubectl patch svc backend \
             -n chat-app \
             -p '{"spec":{"selector":{"app":"backend","version":"green"}}}'
-
   
       - name: Deploy Frontend
         run: |
