@@ -147,7 +147,7 @@ jobs:
           BLUE_IMAGE_TAG: "03"
         run: |
           kubectl apply -f k8s/frontend-service.yml
-          envsubst < k8s/frontend-blue.yml | kubectl apply -f -
+          envsubst < k8s/frontend-deployment.yml | kubectl apply -f -
           envsubst < k8s/frontend-green.yml | kubectl apply -f -
           kubectl rollout status deployment/frontend-green -n chat-app --timeout=300s
           kubectl patch svc frontend -n chat-app \
