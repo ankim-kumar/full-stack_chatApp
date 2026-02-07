@@ -8,6 +8,7 @@ spec:
   selector:
     matchLabels:
       app: frontend
+      version: blue
   template:
     metadata:
       name: frontend-pod
