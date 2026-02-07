@@ -178,7 +178,18 @@ jobs:
             -n chat-app \
             -p '{"spec":{"selector":{"app":"backend","version":"green"}}}'
   
-      - name: Deploy Frontend
+      - name: Deploy Frontend Blue–Green
+        env:
+          IMAGE_TAG: ${{ needs.build_frontend_docker_image_and_push.outputs.image_tag }}
         run: |
-          kubectl apply -f k8s/frontend-deployment.yml
           kubectl apply -f k8s/frontend-service.yml
+          kubectl apply -f k8s/frontend-blue.yml
+          envsubst < k8s/frontend-green.yml | kubectl apply -f -
+
+          kubectl rollout status deployment/frontend-green \
+            -n chat-app --timeout=300s
+
+          kubectl patch svc frontend \
+            -n chat-app \
+            -p '{"spec":{"selector":{"app":"frontend","version":"green"}}}'
+      
