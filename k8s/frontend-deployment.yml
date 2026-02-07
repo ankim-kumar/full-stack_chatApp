@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: frontend-deployment
+  name: frontend-blue
   namespace: chat-app
 spec:
   replicas: 1
@@ -11,10 +11,9 @@ spec:
       version: blue
   template:
     metadata:
-      name: frontend-pod
-      namespace: chat-app
-      labels: 
+      labels:
         app: frontend
+        version: blue
     spec:
       containers:
       - name: chatapp-frontend
@@ -24,7 +23,3 @@ spec:
         env:
         - name: NODE_ENV
           value: production
-          
-
-
-
