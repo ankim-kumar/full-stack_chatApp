@@ -161,3 +161,7 @@ jobs:
           kubectl rollout status deployment/frontend-green -n chat-app --timeout=300s
           kubectl patch svc frontend -n chat-app \
             -p '{"spec":{"selector":{"app":"frontend","version":"green"}}}'
+
+      - name: ingress
+        run: kubectl apply -f k8s/ingress.yml
+       
