@@ -21,7 +21,7 @@ jobs:
           cd frontend
           find . -name "*.js" -exec node --check {} \;
 
-      - name: Backend Compilation (Syntax Check)
+      - name: Backend Compilation (Syntax Check) 
         run: |
           cd backend
           find . -name "*.js" -exec node --check {} \;
