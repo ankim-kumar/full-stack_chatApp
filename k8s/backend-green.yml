@@ -1,23 +1,23 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: backend-blue
+  name: backend-green
   namespace: chat-app
 spec:
   replicas: 1
   selector:
     matchLabels:
       app: backend
-      version: blue
+      version: green
   template:
     metadata:
       labels:
         app: backend
-        version: blue
+        version: green
     spec:
       containers:
       - name: chatapp-backend
-        image: ankim628/chatgitbackendgcp:04
+        image: ankim628/chatgitbackendgcp:${IMAGE_TAG}
         ports:
         - containerPort: 5001
         env:

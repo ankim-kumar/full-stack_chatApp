@@ -4,8 +4,11 @@ metadata:
   name: frontend
   namespace: chat-app
 spec:
+  type: LoadBalancer
   selector:
     app: frontend
+    version: blue 
   ports:
   - port: 80
     targetPort: 80
+ 

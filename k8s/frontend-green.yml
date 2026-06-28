@@ -1,23 +1,23 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: frontend-blue
+  name: frontend-green
   namespace: chat-app
 spec:
   replicas: 1
   selector:
     matchLabels:
       app: frontend
-      version: blue
+      version: green
   template:
     metadata:
       labels:
         app: frontend
-        version: blue
+        version: green
     spec:
       containers:
       - name: chatapp-frontend
-        image: ankim628/chatgitfrontend:${BLUE_IMAGE_TAG}
+        image: ankim628/chatgitfrontend:${GREEN_IMAGE_TAG}
         ports:
         - containerPort: 80
         env:
